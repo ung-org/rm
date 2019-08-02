@@ -17,6 +17,7 @@
  *
  */
 
+#define _XOPEN_SOURCE 700
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,107 +29,104 @@
 #include <ftw.h>
 
 const char *rm_desc = "remove directory entries";
-const char *rm_inv  = "rm [-fiRr] file...";
+const char *rm_inv = "rm [-fiRr] file...";
 
 static int force = 0;
 static int interactive = 0;
 static int recursive = 0;
 
-static int rm (const char*);
+static int rm(const char *);
 
-static int rm_prompt (const char *p)
+static int rm_prompt(const char *p)
 {
-  char *buf = NULL;
-  size_t len = 0;
+	char *buf = NULL;
+	size_t len = 0;
 
-  if (errno == ENOENT) // FIXME: this is probably wrong
-    return 1;
+	if (errno == ENOENT)	// FIXME: this is probably wrong
+		return 1;
 
-  fprintf (stderr, "remove %s? ", p);
-  getline (&buf, &len, stdin);
-  if (!strcasecmp("yes\n", buf) || !(strcasecmp("y\n", buf))) {
-    free (buf);
-    return 1;
-  }
-  return 0;
+	fprintf(stderr, "remove %s? ", p);
+	getline(&buf, &len, stdin);
+	if (!strcasecmp("yes\n", buf) || !(strcasecmp("y\n", buf))) {
+		free(buf);
+		return 1;
+	}
+	return 0;
 }
 
-int nftw_rm (const char *p, const struct stat *sb, int typeflag, struct FTW *f)
+int nftw_rm(const char *p, const struct stat *sb, int typeflag, struct FTW *f)
 {
-  rm (p);
+	return rm(p);
 }
 
-static int rm (const char *p)
+static int rm(const char *p)
 {
-  struct stat st;
-  if (lstat (p, &st) != 0) {
-    if (!force)
-      perror (p);
-    return 1;
-  }
+	struct stat st;
+	if (lstat(p, &st) != 0) {
+		if (!force)
+			perror(p);
+		return 1;
+	}
 
-  if (S_ISDIR (st.st_mode)) {
-    if (!recursive) {
-      fprintf (stderr, "%s: %s\n", p, strerror(EISDIR));
-      return 1;
-    }
-    if (!force && ((access(p, W_OK) != 0 && isatty(fileno(stdin)))
-       || interactive))
-    {
-      if (rm_prompt (p) == 0)
-        return 0;
-    }
-    if (rmdir (p) != 0)
-      perror (p);
-    return 0;
-  }
+	if (S_ISDIR(st.st_mode)) {
+		if (!recursive) {
+			fprintf(stderr, "%s: %s\n", p, strerror(EISDIR));
+			return 1;
+		}
+		if (!force && ((access(p, W_OK) != 0 && isatty(fileno(stdin)))
+			       || interactive)) {
+			if (rm_prompt(p) == 0)
+				return 0;
+		}
+		if (rmdir(p) != 0)
+			perror(p);
+		return 0;
+	}
 
-  if (!force && ((access(p, W_OK) != 0 && isatty(fileno(stdin)))
-     || interactive))
-  {
-    if (rm_prompt (p) == 0)
-      return 0;
-  }
+	if (!force && ((access(p, W_OK) != 0 && isatty(fileno(stdin)))
+		       || interactive)) {
+		if (rm_prompt(p) == 0)
+			return 0;
+	}
 
-  if (unlink (p) != 0)
-    perror (p);
-  return 0;
+	if (unlink(p) != 0)
+		perror(p);
+	return 0;
 }
 
-int
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
-  int c;
+	int c;
 
-  while ((c = getopt (argc, argv, ":fiRr")) != -1) {
-    switch (c) {
-      case 'f':
-        force = 1;
-        interactive = 0;
-        break;
-      case 'i':
-        force = 0;
-        interactive = 1;
-        break;
-      case 'r':
-      case 'R':
-        recursive = 1;
-        break;
-      default:
-        return 1;
-    }
-  }
-  
-  if (optind >= argc)
-    return 1;
+	while ((c = getopt(argc, argv, ":fiRr")) != -1) {
+		switch (c) {
+		case 'f':
+			force = 1;
+			interactive = 0;
+			break;
+		case 'i':
+			force = 0;
+			interactive = 1;
+			break;
+		case 'r':
+		case 'R':
+			recursive = 1;
+			break;
+		default:
+			return 1;
+		}
+	}
 
-  while (optind < argc) {
-    if (recursive)
-      nftw (argv[optind], nftw_rm, 1024, FTW_DEPTH);
-    else
-      rm (argv[optind]);
-    optind++;
-  }
+	if (optind >= argc)
+		return 1;
 
-  return 0;
+	while (optind < argc) {
+		if (recursive)
+			nftw(argv[optind], nftw_rm, 1024, FTW_DEPTH);
+		else
+			rm(argv[optind]);
+		optind++;
+	}
+
+	return 0;
 }
