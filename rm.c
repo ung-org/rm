@@ -130,8 +130,9 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if (optind >= argc)
-		return 1;
+	if (optind >= argc) {
+		return force ? 0 : 1;
+	}
 
 	int ret = 0;
 	while (optind < argc) {
