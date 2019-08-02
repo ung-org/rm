@@ -18,18 +18,15 @@
  */
 
 #define _XOPEN_SOURCE 700
+#include <errno.h>
+#include <ftw.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
-#include <unistd.h>
-#include <errno.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <ftw.h>
-
-const char *rm_desc = "remove directory entries";
-const char *rm_inv = "rm [-fiRr] file...";
+#include <unistd.h>
 
 static int force = 0;
 static int interactive = 0;
@@ -63,8 +60,9 @@ static int rm(const char *p)
 {
 	struct stat st;
 	if (lstat(p, &st) != 0) {
-		if (!force)
+		if (!force) {
 			perror(p);
+		}
 		return 1;
 	}
 
@@ -73,24 +71,31 @@ static int rm(const char *p)
 			fprintf(stderr, "%s: %s\n", p, strerror(EISDIR));
 			return 1;
 		}
+
 		if (!force && ((access(p, W_OK) != 0 && isatty(fileno(stdin)))
 			       || interactive)) {
-			if (rm_prompt(p) == 0)
+			if (rm_prompt(p) == 0) {
 				return 0;
+			}
 		}
-		if (rmdir(p) != 0)
+
+		if (rmdir(p) != 0) {
 			perror(p);
+			return 1;
+		}
 		return 0;
 	}
 
 	if (!force && ((access(p, W_OK) != 0 && isatty(fileno(stdin)))
 		       || interactive)) {
-		if (rm_prompt(p) == 0)
+		if (rm_prompt(p) == 0) {
 			return 0;
+		}
 	}
 
-	if (unlink(p) != 0)
+	if (unlink(p) != 0) {
 		perror(p);
+	}
 	return 0;
 }
 
@@ -104,14 +109,17 @@ int main(int argc, char **argv)
 			force = 1;
 			interactive = 0;
 			break;
+
 		case 'i':
 			force = 0;
 			interactive = 1;
 			break;
+
 		case 'r':
 		case 'R':
 			recursive = 1;
 			break;
+
 		default:
 			return 1;
 		}
@@ -120,13 +128,15 @@ int main(int argc, char **argv)
 	if (optind >= argc)
 		return 1;
 
+	int ret = 0;
 	while (optind < argc) {
-		if (recursive)
-			nftw(argv[optind], nftw_rm, 1024, FTW_DEPTH);
-		else
-			rm(argv[optind]);
+		if (recursive) {
+			ret |= nftw(argv[optind], nftw_rm, 1024, FTW_DEPTH);
+		} else {
+			ret |= rm(argv[optind]);
+		}
 		optind++;
 	}
 
-	return 0;
+	return ret;
 }
