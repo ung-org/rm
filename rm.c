@@ -25,6 +25,8 @@
 #define _XOPEN_SOURCE 700
 #include <errno.h>
 #include <ftw.h>
+#include <libgen.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -32,6 +34,10 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+
+#ifndef OPEN_MAX
+#define OPEN_MAX _POSIX_OPEN_MAX
+#endif
 
 static int force = 0;
 static int interactive = 0;
@@ -77,7 +83,7 @@ static int rm(const char *p)
 			return 1;
 		}
 
-		if (!force && ((access(p, W_OK) != 0 && isatty(fileno(stdin)))
+		if (!force && ((access(p, W_OK) != 0 && isatty(STDIN_FILENO))
 			       || interactive)) {
 			if (rm_prompt(p) == 0) {
 				return 0;
@@ -91,7 +97,7 @@ static int rm(const char *p)
 		return 0;
 	}
 
-	if (!force && ((access(p, W_OK) != 0 && isatty(fileno(stdin)))
+	if (!force && ((access(p, W_OK) != 0 && isatty(STDIN_FILENO))
 		       || interactive)) {
 		if (rm_prompt(p) == 0) {
 			return 0;
@@ -108,7 +114,7 @@ int main(int argc, char **argv)
 {
 	int c;
 
-	while ((c = getopt(argc, argv, ":fiRr")) != -1) {
+	while ((c = getopt(argc, argv, "fiRr")) != -1) {
 		switch (c) {
 		case 'f':
 			force = 1;
@@ -136,10 +142,19 @@ int main(int argc, char **argv)
 
 	int ret = 0;
 	while (optind < argc) {
-		if (recursive) {
-			ret |= nftw(argv[optind], nftw_rm, 1024, FTW_DEPTH);
+		char base[strlen(argv[optind]) + 1];
+		strcpy(base, argv[optind]);
+		char *b = basename(base);
+
+		if (strcmp(b, "/") == 0 || strcmp(b, ".") == 0 || strcmp(b, "..") == 0) {
+			fprintf(stderr, "rm: deleting %s not allowed\n", argv[optind]);
+			ret = 1;
+		} else if (recursive) {
+			ret |= nftw(argv[optind], nftw_rm, OPEN_MAX, FTW_DEPTH | FTW_PHYS);
 		} else {
-			ret |= rm(argv[optind]);
+			struct stat st;
+			lstat(argv[optind], &st);
+			ret |= nftw_rm(argv[optind], &st, 0, NULL);
 		}
 		optind++;
 	}
