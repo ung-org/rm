@@ -28,11 +28,9 @@
 #include <libgen.h>
 #include <limits.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 #ifndef OPEN_MAX
@@ -53,18 +51,16 @@ static int rm_prompt(const char *p)
 		return 1;
 	}
 
-	char *buf = NULL;
-	size_t len = 0;
-
-	if (errno == ENOENT)	// FIXME: this is probably wrong
-		return 1;
-
 	fprintf(stderr, "remove %s? ", p);
-	getline(&buf, &len, stdin);
+
+	char buf[MAX_CANON];
+	fgets(buf, sizeof(buf), stdin);
+
+	/* TODO: use yesexpr */
 	if (!strcasecmp("yes\n", buf) || !(strcasecmp("y\n", buf))) {
-		free(buf);
 		return 1;
 	}
+
 	return 0;
 }
 
@@ -73,27 +69,18 @@ int rm(const char *p, const struct stat *st, int typeflag, struct FTW *f)
 	(void)typeflag; (void)f;
 
 	if (st == NULL) {
-		/* TODO: proper error, or should there be one? */
-		printf("st is null\n");
+		fprintf(stderr, "rm: %s: unknown error\n", p);
 		retval = 1;
 		return 0;
 	}
 
 	if (S_ISDIR(st->st_mode)) {
 		if (!recursive) {
-			fprintf(stderr, "%s: %s\n", p, strerror(EISDIR));
+			fprintf(stderr, "rm: %s: %s\n", p, strerror(EISDIR));
 			retval = 1;
-			return 0;
-		}
-
-		if (!rm_prompt(p)) {
-			return 0;
-		}
-
-		if (rmdir(p) != 0) {
-			perror(p);
+		} else if (rm_prompt(p) && rmdir(p) != 0) {
+			fprintf(stderr, "rm: %s: %s\n", p, strerror(errno));
 			retval = 1;
-			return 0;
 		}
 		return 0;
 	}
@@ -103,7 +90,7 @@ int rm(const char *p, const struct stat *st, int typeflag, struct FTW *f)
 	}
 
 	if (unlink(p) != 0) {
-		perror(p);
+		fprintf(stderr, "rm: %s: %s\n", p, strerror(errno));
 		retval = 1;
 	}
 
@@ -142,8 +129,8 @@ int main(int argc, char **argv)
 		strcpy(base, argv[optind]);
 		char *b = basename(base);
 
-		if (strcmp(b, "/") == 0 || strcmp(b, ".") == 0 || strcmp(b, "..") == 0) {
-			fprintf(stderr, "rm: deleting %s not allowed\n", argv[optind]);
+		if (!strcmp(b, "/") || !strcmp(b, ".") || !strcmp(b, "..")) {
+			fprintf(stderr, "rm: %s: deletion not allowed\n", argv[optind]);
 			retval = 1;
 			continue;
 		}
@@ -151,7 +138,7 @@ int main(int argc, char **argv)
 		struct stat st;
 		if (lstat(argv[optind], &st) != 0) {
 			if (mode != FORCE) {
-				perror(argv[optind]);
+				fprintf(stderr, "rm: %s: %s\n", argv[optind], strerror(errno));
 				retval = 1;
 			}
 			continue;
