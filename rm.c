@@ -43,10 +43,10 @@ static enum { DEFAULT, INTERACTIVE, FORCE } mode = DEFAULT;
 static int recursive = 0;
 static int retval = 0;
 
-static int rm_prompt(const char *p)
+static int confirm(const char *p)
 {
 	static regex_t yesre = { 0 };
-	static int compiled = 0;
+	static char *yesexpr = NULL;
 
 	if (mode == FORCE) {
 		return 1;
@@ -61,10 +61,9 @@ static int rm_prompt(const char *p)
 	char buf[MAX_CANON];
 	fgets(buf, sizeof(buf), stdin);
 
-	if (!compiled) {
-		char *yesexpr = nl_langinfo(YESEXPR);
+	if (yesexpr == NULL) {
+		yesexpr = nl_langinfo(YESEXPR);
 		regcomp(&yesre, yesexpr, REG_EXTENDED | REG_ICASE | REG_NOSUB);
-		compiled = 1;
 	}
 
 	if (regexec(&yesre, buf, 0, NULL, 0) == 0) {
@@ -86,12 +85,12 @@ int rm(const char *p, const struct stat *st, int typeflag, struct FTW *f)
 		if (!recursive) {
 			fprintf(stderr, "rm: %s: %s\n", p, strerror(EISDIR));
 			retval = 1;
-		} else if (rm_prompt(p) && rmdir(p) != 0) {
+		} else if (confirm(p) && rmdir(p) != 0) {
 			fprintf(stderr, "rm: %s: %s\n", p, strerror(errno));
 			retval = 1;
 		}
 
-	} else if (rm_prompt(p) && unlink(p) != 0) {
+	} else if (confirm(p) && unlink(p) != 0) {
 		fprintf(stderr, "rm: %s: %s\n", p, strerror(errno));
 		retval = 1;
 	}
