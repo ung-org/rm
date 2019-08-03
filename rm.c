@@ -82,14 +82,8 @@ int rm(const char *p, const struct stat *st, int typeflag, struct FTW *f)
 			fprintf(stderr, "rm: %s: %s\n", p, strerror(errno));
 			retval = 1;
 		}
-		return 0;
-	}
 
-	if (!rm_prompt(p)) {
-		return 0;
-	}
-
-	if (unlink(p) != 0) {
+	} else if (rm_prompt(p) && unlink(p) != 0) {
 		fprintf(stderr, "rm: %s: %s\n", p, strerror(errno));
 		retval = 1;
 	}
