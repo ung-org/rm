@@ -64,6 +64,7 @@ static int rm_prompt(const char *p)
 	if (!compiled) {
 		char *yesexpr = nl_langinfo(YESEXPR);
 		regcomp(&yesre, yesexpr, REG_EXTENDED | REG_ICASE | REG_NOSUB);
+		compiled = 1;
 	}
 
 	if (regexec(&yesre, buf, 0, NULL, 0) == 0) {
@@ -80,10 +81,8 @@ int rm(const char *p, const struct stat *st, int typeflag, struct FTW *f)
 	if (st == NULL) {
 		fprintf(stderr, "rm: %s: unknown error\n", p);
 		retval = 1;
-		return 0;
-	}
 
-	if (S_ISDIR(st->st_mode)) {
+	} else if (S_ISDIR(st->st_mode)) {
 		if (!recursive) {
 			fprintf(stderr, "rm: %s: %s\n", p, strerror(EISDIR));
 			retval = 1;
