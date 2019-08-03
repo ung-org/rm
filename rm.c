@@ -27,9 +27,11 @@
 #include <ftw.h>
 #include <libgen.h>
 #include <limits.h>
+#include <langinfo.h>
+#include <locale.h>
+#include <regex.h>
 #include <stdio.h>
 #include <string.h>
-#include <strings.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -43,6 +45,9 @@ static int retval = 0;
 
 static int rm_prompt(const char *p)
 {
+	static regex_t yesre = { 0 };
+	static int compiled = 0;
+
 	if (mode == FORCE) {
 		return 1;
 	}
@@ -51,13 +56,17 @@ static int rm_prompt(const char *p)
 		return 1;
 	}
 
-	fprintf(stderr, "remove %s? ", p);
+	fprintf(stderr, "rm: %s? ", p);
 
 	char buf[MAX_CANON];
 	fgets(buf, sizeof(buf), stdin);
 
-	/* TODO: use yesexpr */
-	if (!strcasecmp("yes\n", buf) || !(strcasecmp("y\n", buf))) {
+	if (!compiled) {
+		char *yesexpr = nl_langinfo(YESEXPR);
+		regcomp(&yesre, yesexpr, REG_EXTENDED | REG_ICASE | REG_NOSUB);
+	}
+
+	if (regexec(&yesre, buf, 0, NULL, 0) == 0) {
 		return 1;
 	}
 
@@ -93,6 +102,8 @@ int rm(const char *p, const struct stat *st, int typeflag, struct FTW *f)
 
 int main(int argc, char **argv)
 {
+	setlocale(LC_ALL, "");
+
 	int c;
 	while ((c = getopt(argc, argv, "fiRr")) != -1) {
 		switch (c) {
