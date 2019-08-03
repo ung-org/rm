@@ -124,7 +124,11 @@ int main(int argc, char **argv)
 	}
 
 	if (optind >= argc) {
-		return mode == FORCE ? 0 : 1;
+		if (mode == FORCE) {
+			return 0;
+		}
+		fprintf(stderr, "rm: missing operand\n");
+		return 1;
 	}
 
 	do {
