@@ -39,11 +39,9 @@
 #define OPEN_MAX _POSIX_OPEN_MAX
 #endif
 
-static int force = 0;
-static int interactive = 0;
+static enum { DEFAULT, INTERACTIVE, FORCE } mode = DEFAULT;
 static int recursive = 0;
-
-static int rm(const char *);
+static int retval = 0;
 
 static int rm_prompt(const char *p)
 {
@@ -62,29 +60,25 @@ static int rm_prompt(const char *p)
 	return 0;
 }
 
-int nftw_rm(const char *p, const struct stat *sb, int typeflag, struct FTW *f)
+int rm(const char *p, const struct stat *st, int typeflag, struct FTW *f)
 {
-	return rm(p);
-}
+	(void)typeflag; (void)f;
 
-static int rm(const char *p)
-{
-	struct stat st;
-	if (lstat(p, &st) != 0) {
-		if (!force) {
-			perror(p);
-		}
-		return 1;
+	if (st == NULL) {
+		/* TODO: proper error, or should there be one? */
+		retval = 1;
+		return 0;
 	}
 
-	if (S_ISDIR(st.st_mode)) {
+	if (S_ISDIR(st->st_mode)) {
 		if (!recursive) {
 			fprintf(stderr, "%s: %s\n", p, strerror(EISDIR));
-			return 1;
+			retval = 1;
+			return 0;
 		}
 
-		if (!force && ((access(p, W_OK) != 0 && isatty(STDIN_FILENO))
-			       || interactive)) {
+		if (mode != FORCE && ((access(p, W_OK) != 0 && isatty(STDIN_FILENO))
+			       || mode == INTERACTIVE)) {
 			if (rm_prompt(p) == 0) {
 				return 0;
 			}
@@ -92,13 +86,14 @@ static int rm(const char *p)
 
 		if (rmdir(p) != 0) {
 			perror(p);
-			return 1;
+			retval = 1;
+			return 0;
 		}
 		return 0;
 	}
 
-	if (!force && ((access(p, W_OK) != 0 && isatty(STDIN_FILENO))
-		       || interactive)) {
+	if (mode != FORCE && ((access(p, W_OK) != 0 && isatty(STDIN_FILENO))
+		       || mode == INTERACTIVE)) {
 		if (rm_prompt(p) == 0) {
 			return 0;
 		}
@@ -106,24 +101,23 @@ static int rm(const char *p)
 
 	if (unlink(p) != 0) {
 		perror(p);
+		retval = 1;
 	}
+
 	return 0;
 }
 
 int main(int argc, char **argv)
 {
 	int c;
-
 	while ((c = getopt(argc, argv, "fiRr")) != -1) {
 		switch (c) {
 		case 'f':
-			force = 1;
-			interactive = 0;
+			mode = FORCE;
 			break;
 
 		case 'i':
-			force = 0;
-			interactive = 1;
+			mode = INTERACTIVE;
 			break;
 
 		case 'r':
@@ -137,10 +131,9 @@ int main(int argc, char **argv)
 	}
 
 	if (optind >= argc) {
-		return force ? 0 : 1;
+		return mode == FORCE ? 0 : 1;
 	}
 
-	int ret = 0;
 	while (optind < argc) {
 		char base[strlen(argv[optind]) + 1];
 		strcpy(base, argv[optind]);
@@ -148,16 +141,20 @@ int main(int argc, char **argv)
 
 		if (strcmp(b, "/") == 0 || strcmp(b, ".") == 0 || strcmp(b, "..") == 0) {
 			fprintf(stderr, "rm: deleting %s not allowed\n", argv[optind]);
-			ret = 1;
+			retval = 1;
 		} else if (recursive) {
-			ret |= nftw(argv[optind], nftw_rm, OPEN_MAX, FTW_DEPTH | FTW_PHYS);
+			nftw(argv[optind], rm, OPEN_MAX, FTW_DEPTH | FTW_PHYS);
 		} else {
 			struct stat st;
-			lstat(argv[optind], &st);
-			ret |= nftw_rm(argv[optind], &st, 0, NULL);
+			if (lstat(argv[optind], &st) == 0) {
+				rm(argv[optind], &st, 0, NULL);
+			} else if (mode != FORCE) {
+				perror(argv[optind]);
+				retval = 1;
+			}
 		}
 		optind++;
 	}
 
-	return ret;
+	return retval;
 }
