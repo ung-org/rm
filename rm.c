@@ -132,27 +132,26 @@ int main(int argc, char **argv)
 		char base[strlen(path) + 1];
 		strcpy(base, path);
 		char *b = basename(base);
+		struct stat st;
 
 		if (!strcmp(b, "/") || !strcmp(b, ".") || !strcmp(b, "..")) {
 			fprintf(stderr, "rm: %s: %s\n", path, strerror(EINVAL));
 			retval = 1;
-			continue;
-		}
 
-		struct stat st;
-		if (lstat(path, &st) != 0) {
-			if (mode != FORCE) {
-				fprintf(stderr, "rm: %s: %s\n", path, strerror(errno));
-				retval = 1;
+		} else if (lstat(path, &st) != 0) {
+			if (mode == FORCE) {
+				continue;
 			}
-			continue;
-		}
+			fprintf(stderr, "rm: %s: %s\n", path, strerror(errno));
+			retval = 1;
 
-		if (recursive) {
+		} else if (recursive) {
 			nftw(path, rm, OPEN_MAX, FTW_DEPTH | FTW_PHYS);
+
 		} else {
 			rm(path, &st, 0, NULL);
 		}
+
 	} while (++optind < argc);
 
 	return retval;
