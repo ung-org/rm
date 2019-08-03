@@ -128,29 +128,30 @@ int main(int argc, char **argv)
 	}
 
 	do {
-		char base[strlen(argv[optind]) + 1];
-		strcpy(base, argv[optind]);
+		char *path = argv[optind];
+		char base[strlen(path) + 1];
+		strcpy(base, path);
 		char *b = basename(base);
 
 		if (!strcmp(b, "/") || !strcmp(b, ".") || !strcmp(b, "..")) {
-			fprintf(stderr, "rm: %s: deletion not allowed\n", argv[optind]);
+			fprintf(stderr, "rm: %s: %s\n", path, strerror(EINVAL));
 			retval = 1;
 			continue;
 		}
 
 		struct stat st;
-		if (lstat(argv[optind], &st) != 0) {
+		if (lstat(path, &st) != 0) {
 			if (mode != FORCE) {
-				fprintf(stderr, "rm: %s: %s\n", argv[optind], strerror(errno));
+				fprintf(stderr, "rm: %s: %s\n", path, strerror(errno));
 				retval = 1;
 			}
 			continue;
 		}
 
 		if (recursive) {
-			nftw(argv[optind], rm, OPEN_MAX, FTW_DEPTH | FTW_PHYS);
+			nftw(path, rm, OPEN_MAX, FTW_DEPTH | FTW_PHYS);
 		} else {
-			rm(argv[optind], &st, 0, NULL);
+			rm(path, &st, 0, NULL);
 		}
 	} while (++optind < argc);
 
