@@ -45,6 +45,14 @@ static int retval = 0;
 
 static int rm_prompt(const char *p)
 {
+	if (mode == FORCE) {
+		return 1;
+	}
+
+	if (!((access(p, W_OK) != 0 && isatty(STDIN_FILENO)) || mode == INTERACTIVE)) {
+		return 1;
+	}
+
 	char *buf = NULL;
 	size_t len = 0;
 
@@ -66,6 +74,7 @@ int rm(const char *p, const struct stat *st, int typeflag, struct FTW *f)
 
 	if (st == NULL) {
 		/* TODO: proper error, or should there be one? */
+		printf("st is null\n");
 		retval = 1;
 		return 0;
 	}
@@ -77,11 +86,8 @@ int rm(const char *p, const struct stat *st, int typeflag, struct FTW *f)
 			return 0;
 		}
 
-		if (mode != FORCE && ((access(p, W_OK) != 0 && isatty(STDIN_FILENO))
-			       || mode == INTERACTIVE)) {
-			if (rm_prompt(p) == 0) {
-				return 0;
-			}
+		if (!rm_prompt(p)) {
+			return 0;
 		}
 
 		if (rmdir(p) != 0) {
@@ -92,11 +98,8 @@ int rm(const char *p, const struct stat *st, int typeflag, struct FTW *f)
 		return 0;
 	}
 
-	if (mode != FORCE && ((access(p, W_OK) != 0 && isatty(STDIN_FILENO))
-		       || mode == INTERACTIVE)) {
-		if (rm_prompt(p) == 0) {
-			return 0;
-		}
+	if (!rm_prompt(p)) {
+		return 0;
 	}
 
 	if (unlink(p) != 0) {
@@ -134,7 +137,7 @@ int main(int argc, char **argv)
 		return mode == FORCE ? 0 : 1;
 	}
 
-	while (optind < argc) {
+	do {
 		char base[strlen(argv[optind]) + 1];
 		strcpy(base, argv[optind]);
 		char *b = basename(base);
@@ -142,19 +145,24 @@ int main(int argc, char **argv)
 		if (strcmp(b, "/") == 0 || strcmp(b, ".") == 0 || strcmp(b, "..") == 0) {
 			fprintf(stderr, "rm: deleting %s not allowed\n", argv[optind]);
 			retval = 1;
-		} else if (recursive) {
-			nftw(argv[optind], rm, OPEN_MAX, FTW_DEPTH | FTW_PHYS);
-		} else {
-			struct stat st;
-			if (lstat(argv[optind], &st) == 0) {
-				rm(argv[optind], &st, 0, NULL);
-			} else if (mode != FORCE) {
+			continue;
+		}
+
+		struct stat st;
+		if (lstat(argv[optind], &st) != 0) {
+			if (mode != FORCE) {
 				perror(argv[optind]);
 				retval = 1;
 			}
+			continue;
 		}
-		optind++;
-	}
+
+		if (recursive) {
+			nftw(argv[optind], rm, OPEN_MAX, FTW_DEPTH | FTW_PHYS);
+		} else {
+			rm(argv[optind], &st, 0, NULL);
+		}
+	} while (++optind < argc);
 
 	return retval;
 }
