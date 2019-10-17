@@ -39,6 +39,10 @@
 #define OPEN_MAX _POSIX_OPEN_MAX
 #endif
 
+#ifndef MAX_CANON
+#define MAX_CANON _POSIX_MAX_CANON
+#endif
+
 static enum { DEFAULT, INTERACTIVE, FORCE } mode = DEFAULT;
 static int recursive = 0;
 static int retval = 0;
