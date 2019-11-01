@@ -77,7 +77,7 @@ static int confirm(const char *p)
 	return 0;
 }
 
-int rm(const char *p, const struct stat *st, int typeflag, struct FTW *f)
+static int rm(const char *p, const struct stat *st, int typeflag, struct FTW *f)
 {
 	(void)typeflag; (void)f;
 
@@ -102,7 +102,7 @@ int rm(const char *p, const struct stat *st, int typeflag, struct FTW *f)
 	return 0;
 }
 
-int main(int argc, char **argv)
+int main(int argc, char *argv[])
 {
 	setlocale(LC_ALL, "");
 
